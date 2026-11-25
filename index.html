@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-title" content="AMGDSVV">
 <meta name="amgdsvv-history-cache" content="ui-v017-struct-20261116">
 <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22AMGDSVV%22%2C%22short_name%22%3A%22AMGDSVV%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23202a32%22%2C%22theme_color%22%3A%22%23202a32%22%2C%22start_url%22%3A%22.%22%7D">
-<title>AMGDSVV 末日幸存者 v0.19.1</title>
+<title>AMGDSVV 末日幸存者 v0.19.5</title>
 <style>
 /* 四套界面风格共用一套变量名；切换只改 html[data-theme]，不改任何组件样式。
    day=白日（默认）· night=黑夜 · eye=护眼（豆沙绿米黄）· paper=暖纸色。
@@ -788,7 +788,7 @@ button.home-plan-card{cursor:pointer;font:inherit}
 .v017-task-action{position:relative}
 .v017-task-action.v017-task-main{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 12%,var(--btn))}
 .v017-task-action.v017-task-side{border-color:var(--warn);background:color-mix(in srgb,var(--warn) 12%,var(--btn))}
-.v017-task-action[data-v017-task-kind]::after{content:attr(data-v017-task-kind);position:absolute;top:-6px;right:-4px;padding:0 6px;border-radius:6px;color:#fff;font-size:10px;font-weight:700;line-height:1.5;pointer-events:none}
+.v017-task-action[data-v017-task-kind]::after{content:attr(data-v017-task-kind);position:absolute;top:-6px;right:-4px;padding:0 6px;border-radius:6px;color:#fff;font-size:13px;font-weight:700;line-height:1.2;pointer-events:none}
 .v017-task-action.v017-task-main::after{background:var(--ok)}
 .v017-task-action.v017-task-side::after{background:var(--warn)}
 .ui-worldlog-row{padding:7px 0;border-top:1px solid var(--softLine)}
@@ -1897,6 +1897,23 @@ table{font-size:13px}
 .tag,.tag.omen,.tag.lp,.ui-map-node-meta,.ui-map-node-risk{font-size:13px!important}
 .uiV23-cap,.uiV23-search,.uiV23-more,.ui-task-filters button,.v017-task-guide-toggle,.v017-task-switch{min-height:44px!important}
 @media(max-width:640px){button{min-height:44px}}
+/* V0.19.2 即时结果浮层：只在设置开启时出现，点一下或 4 秒后收起；网页与手机共用同一套。 */
+.instant-result{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:120;display:block;width:min(92vw,460px);max-height:42vh;overflow:auto;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--txt);box-shadow:0 12px 32px rgba(0,0,0,.28);font:inherit;font-size:15px;line-height:1.65;text-align:left;cursor:pointer}
+.instant-result .ir-hint{display:block;margin-top:6px;font-size:13px;color:var(--dim)}
+.instant-result b{color:var(--gold)}
+@media(min-width:901px){.instant-result{bottom:28px}}
+/* V0.19.2 地图收起：只藏图面与图例，保留卡头与「展开地图」。 */
+#playMap.is-folded .ui-map-legend,#playMap.is-folded .ui-map-canvas{display:none!important}
+#playMap.is-folded .v23-map-head{margin-bottom:0}
+/* 手机端任务栏已搬到地图上方；不再需要左栏整列，避免顶部重复占位。 */
+@media(max-width:900px){
+  #uiV23Side{display:none!important}
+  #taskDock{height:min(56svh,460px)!important;max-height:none;display:flex;overflow:hidden;padding-bottom:0}
+  #taskDock #dockBody{display:flex!important;flex-direction:column;height:100%;min-height:0;overflow:hidden;padding:0 11px 11px}
+  #taskDock #taskContent{flex:1 1 0;max-height:none!important;min-height:0;overflow:auto;padding-top:11px}
+  #taskDock #historyPanel{flex:0 0 170px;height:auto;min-height:140px;margin-top:10px}
+  #taskDock #historyPanel .history-list{overflow:auto}
+}
 </style>
 <style id="workspace-layout">
 /* One height calculation for both desktop columns; narrow screens use normal document flow. */
@@ -6884,7 +6901,7 @@ const SEX_TEXT_DEBT=new Set([]);
 "use strict";
 /* ============ 唯一规则源 ============ */
 /* 版本号是唯一事实源：构建产物文件名与页面标题都从 VERSION 派生。 */
-const VERSION = "0.19.1";
+const VERSION = "0.19.5";
 const RULESET_ID = "AMGDSVV-P0-PROTO-006";
 
 /* ============ 内容数据层（数据与逻辑分离：只放字面量数据表，不写逻辑） ============ */
@@ -531243,9 +531260,12 @@ function noTargetHint(verb){
   return "这个动作在本环没有可用的对象——换个动作，或先「探索」过去。";
 }
 /* 当前任务只出现在对应动作的目标列表；任务与通用目标分别执行。 */
+function activeTaskFailed(){
+  return (G.curChain||"main")==="main"&&G.godTaskState==="failed";
+}
 function mainlineTaskTarget(verb){
   const step=typeof chainStepCur==="function"?chainStepCur():null;
-  if(G.aftermath||curChainDone()||G.godTaskState==="failed"||!step)return null;
+  if(G.aftermath||curChainDone()||activeTaskFailed()||!step)return null;
   const action=String(step.action||""),place=taskStepPlace(step);
   const elsewhere=G.ring!==step.where||(place&&v013CurrentPlace()?.id!==place.id);
   const displayVerb=value=>String(value||"").replace(/交谈|相处/g,"交流");
@@ -531310,7 +531330,7 @@ function riskOf(verb,target){
     return verb==="战斗"?((ring().threat>=3)?2:1):((verb==="潜行"||verb==="探索")?1:0);
   }
   if(target==="task"){
-    if(optimizedRun()&&G.godTaskState==="failed"){G.lastResult="任务已最终失败，只能继续生存，或者处理别的琐事。";render();return;} return verb==="战斗"?((ring().threat>=3)?2:1):((verb==="潜行"||verb==="探索")?1:0); }
+    return verb==="战斗"?((ring().threat>=3)?2:1):((verb==="潜行"||verb==="探索")?1:0); }
   if(verb==="探索") return target==="deep"?1:0;
   if(verb==="战斗") return target==="fight"?((ring().threat>=3)?2:1):1;
   if(verb==="潜行") return 1;
@@ -531321,12 +531341,33 @@ function v013BeginAction(target){
  G.choosing=false;G.pickingVerb=null;G.v013ActionTarget=target;
  return true;
 }
+function performTaskAction(verb, cost){
+  const step=chainStepCur(),need=step.need||{};
+  if((need.ammo||0)>G.ammo || (need.meds||0)>G.meds){
+    G.lastResult="任务还差条件："+chainStepNeedText(step)+"。凑齐再来。";
+    render();
+    return;
+  }
+  if(verb==="战斗"&&G.worldId==="casino"&&typeof casinoChooseGame==="function"){casinoChooseGame(step);return;}
+  actionCount(verb);
+  if(verb!=="休息"&&verb!=="交谈"&&verb!=="建造")v015CommitAction(verb,"task",cost);
+  G.lastResult=taskActionResolve(step,verb);
+  afterAction();
+}
 /* 执行一个动作的总入口：校验、扣体力、推时间并结算。
  * verb 是动作名，target 是目标键；体力不足只提示，不吃掉时段。 */
 function doAction(verb, target){
   if(!v013BeginAction(target))return;
-  if(target==="task"){const place=taskStepPlace(chainStepCur());if(place&&v013CurrentPlace()?.id!==place.id){G.lastResult="需前往"+place.n+"完成此任务。";render();return;}}
-  if(optimizedRun()&&target==="task"&&G.godTaskState!=="failed"){const step=chainStepCur();if(step&&step.action===verb&&G.ring===step.where&&submitTaskEvidence(step)){render();return;}}
+  if(target==="task"){
+    const option=mainlineTaskTarget(verb);
+    if(!option||option.disabled){
+      G.lastResult=activeTaskFailed()?"任务已最终失败，只能继续生存，或者处理别的琐事。":option?.act||"这一步不是当前任务。";
+      render();
+      return;
+    }
+    verb=option.verb;
+    if(optimizedRun()&&submitTaskEvidence(chainStepCur())){render();return;}
+  }
   const need=verbCost(verb,target);
   const gate=v015ActionGate(verb,target);
   if(!gate.ok){ G.lastResult=gate.reason; render(); return; }
@@ -531339,19 +531380,7 @@ function doAction(verb, target){
     return;
   }
   // 任务专属按钮：只推进任务，不跑通用动作（不额外拾取/不额外遭遇），与通用动作彻底分开
-  if(target==="task"){
-    if(optimizedRun()&&G.godTaskState==="failed"){G.lastResult="任务已最终失败，只能继续生存，或者处理别的琐事。";render();return;}
-    const st=chainStepCur();
-    if(!st || st.action!==verb || G.ring!==st.where){ G.lastResult="这一步不在当前区域，或不是当前任务。"; render(); return; }
-    const needTask=st.need||{};
-    if((needTask.ammo||0)>G.ammo || (needTask.meds||0)>G.meds){ G.lastResult="任务还差条件："+chainStepNeedText(st)+"。凑齐再来。"; render(); return; }
-    if(verb==="战斗"&&G.worldId==="casino"&&typeof casinoChooseGame==="function"){casinoChooseGame(st);return;}
-    actionCount(verb);
-    if(verb!=="休息"&&verb!=="交谈"&&verb!=="建造") v015CommitAction(verb,target,need);
-    G.lastResult=taskActionResolve(st,verb);
-    afterAction();
-    return;
-  }
+  if(target==="task")return performTaskAction(verb,need);
   if(verb==="战斗"&&target==="casino"&&G.worldId==="casino"&&typeof casinoChooseGame==="function"){casinoChooseGame(null);return;}
   actionCount(verb);
   if(verb!=="休息"&&verb!=="交谈"&&verb!=="建造") v015CommitAction(verb,target,need);
@@ -532894,6 +532923,16 @@ function afterAction(){
   if(maybeVisit()) return;
   if(G.day>CFG.worldDays){ settle("活到世界结束（第 30 天）"); return; }
   render();
+  showActionResultOverlay();
+}
+/* 通用行动结算后把 G.lastResult 送上屏幕浮层。
+ * V0.19.2 补漏：此前只有事件与部分交互走 showResult，普通九宫格行动结算后只看静态栏。
+ * 事件 / 拜访 / 力量结算已经打开自己的弹窗时不再抢；关闭设置时不弹。 */
+function showActionResultOverlay(){
+  if(G.phase!=="playing" || !G.lastResult || !instantResultEnabled())return;
+  const root=$("modalRoot"); if(!root)return;
+  if(root.querySelector&&root.querySelector(".mask"))return;
+  showResult(G.lastResult,{noExp:true});
 }
 /* 换到下一个时段，必要时跨天。
  * 无入参；按规则版本决定是走世界钟还是回体力，跨天会触发日结。 */
@@ -533007,13 +533046,29 @@ function dayTick(){
   matriTick();
 }
 /* 弹出一次行动结果，并给职业加一点阅历。
- * t 是要显示的文案；只在局内加阅历，不改其它状态。 */
-function showResult(t){
+ * t 是要显示的文案；只在局内加阅历，不改其它状态。
+ * V0.19.2：默认改成屏幕浮层，点一下或 4 秒后收起；设置里可关闭。
+ *   关闭时不再拦一次点击，直接走 closeResult 的死亡 / 满期检查。 */
+let INSTANT_RESULT_TIMER=null;
+function instantResultEnabled(){
+  try{return typeof store==="undefined"||store.get("amgdsvv_instant_result","1")!=="0";}
+  catch(error){return true;}
+}
+function showResult(t, options){
   // 每处理完一件事，职业阅历 +1（转职阅历不只靠主线任务，避免某些世界链短导致永远够不到门槛）
-  if(G.phase==="playing") addZExp(1);
+  if((!options || !options.noExp) && G.phase==="playing") addZExp(1);
+  if(!instantResultEnabled()){ closeResult(); return; }
   $("modalRoot").innerHTML =
-    "<div class=\"mask\"><div class=\"modal\"><h2 class=\"gold\">行动结果</h2><p>"+t+"</p>"+
-    "<button class=\"btn prim\" onclick=\"closeResult()\">继续</button></div></div>";
+    "<button type=\"button\" class=\"instant-result actual-result\" role=\"status\" onclick=\"dismissInstantResult()\">"+t+
+    "<span class=\"ir-hint\">点一下或 4 秒后收起</span></button>";
+  if(INSTANT_RESULT_TIMER) clearTimeout(INSTANT_RESULT_TIMER);
+  INSTANT_RESULT_TIMER=setTimeout(function(){dismissInstantResult();},4000);
+}
+/* 收起即时结果并接着走原有的死亡 / 满期检查；重复调用安全。 */
+function dismissInstantResult(){
+  if(INSTANT_RESULT_TIMER){clearTimeout(INSTANT_RESULT_TIMER);INSTANT_RESULT_TIMER=null;}
+  const root=$("modalRoot"); if(root&&root.querySelector&&root.querySelector(".instant-result"))root.innerHTML="";
+  closeResult();
 }
 /* 关掉结果弹窗，接着查死亡、查满期再重画。
  * 无入参；该结算就直接进结算页，不再重画局内。 */
@@ -533257,8 +533312,9 @@ function v23SettingsSections(ctx){
   const context=ctx||{};
   return [
     {key:"theme",title:"界面风格",summary:"四套配色跟随这台设备，不进存档；点一下立即切换。",items:v23ThemeItems(context.themes,context.currentTheme)},
-    {key:"display",title:"显示",summary:"判定明细默认展开，可在此关闭。",items:[
-      {id:"roll-detail",label:"判定明细："+(typeof store==="undefined"||store.get("amgdsvv_roll_detail","1")!=="0"?"展开":"收起"),on:typeof store==="undefined"||store.get("amgdsvv_roll_detail","1")!=="0",action:"store.set('amgdsvv_roll_detail',store.get('amgdsvv_roll_detail','1')==='0'?'1':'0');openSettings()"}
+    {key:"display",title:"显示",summary:"判定明细默认展开，可在此关闭；即时结果浮层也可单独开关。",items:[
+      {id:"roll-detail",label:"判定明细："+(typeof store==="undefined"||store.get("amgdsvv_roll_detail","1")!=="0"?"展开":"收起"),on:typeof store==="undefined"||store.get("amgdsvv_roll_detail","1")!=="0",action:"store.set('amgdsvv_roll_detail',store.get('amgdsvv_roll_detail','1')==='0'?'1':'0');openSettings()"},
+      {id:"instant-result",label:"即时结果浮层："+(typeof store==="undefined"||store.get("amgdsvv_instant_result","1")!=="0"?"开":"关"),on:typeof store==="undefined"||store.get("amgdsvv_instant_result","1")!=="0",action:"store.set('amgdsvv_instant_result',store.get('amgdsvv_instant_result','1')==='0'?'1':'0');openSettings()"}
     ]},
     {key:"naming",title:"专名显示",summary:"西幻人名与西幻地名可以分别选中文或英文。",items:[
       v23NameLanguageItem("name-language-zh","西幻人名 · 中文","amgdsvv_name_language","zh",context.nameLanguage),
@@ -534419,12 +534475,17 @@ const V017_MAP_LINEAR_WORLDS=Object.freeze({plane:1,train:1,bus:1,cruise:1,space
 // 入参 saved 可省略；默认全开，优先取显式名单，其次兼容旧 keys。
 function v017TaskPref(saved){
   const raw=saved&&typeof saved==="object"?saved:(store.getJSON(TASK_GUIDE_KEY,{})||{});
+  const runKey=JSON.stringify([G.worldId,G.seed]);
   const stored=Array.isArray(raw.trackedIds)?raw.trackedIds.filter(id=>typeof id==="string"):null;
   const legacy=Array.isArray(raw.keys)?raw.keys.filter(id=>typeof id==="string"):null;
-  const explicit=stored||(legacy&&legacy.length?legacy:null);
+  const prefix=runKey.slice(0,-1)+",";
+  const allIds=stored||legacy||[];
+  const currentIds=allIds.filter(id=>id.startsWith(prefix));
+  const runs=Array.isArray(raw.runs)?raw.runs.filter(key=>typeof key==="string"):[];
+  const explicit=runs.includes(runKey)||currentIds.length>0;
   return {enabled:typeof raw.enabled==="boolean"?raw.enabled:true,
     source:["all","main","side","tracked"].includes(raw.source)?raw.source:"all",
-    explicit:!!explicit,trackedIds:explicit?explicit.slice():[]};
+    runKey,runs,explicit,trackedIds:currentIds,otherIds:allIds.filter(id=>!id.startsWith(prefix))};
 }
 // 判断某条任务是否在追踪范围内。
 // 入参 pref 与 row；已完成一律 false，未写显式名单时默认 true。
@@ -534449,8 +534510,12 @@ function v017TaskMarkerData(prefArg){
     if(placeId&&!places.some(place=>place.id===placeId))return null;   // 只认本界正式地点
     const kind=row.main?"main":"side";
     return {id:row.key,kind,kindText:V017_TASK_KIND_TEXT[kind],name:row.name,placeId,
-      where:Number(row.step&&row.step.where),action:String((row.step&&row.step.action)||"")};
+      where:row.step.where,action:row.step.action,active:row.active};
   }).filter(Boolean);
+}
+// Cross-ring tasks mark the next hop, even when the destination is several rings away.
+function v017TaskNextRing(mark){
+  return G.ring+Math.sign(mark.where-G.ring);
 }
 /* 行动九宫格的只读标记投影：只读现有按钮文字认动作，不碰 onclick、不碰结算。
    接入契约：UI-01 在 renderPlay() 之后调用 V017_UI02_TASKS.applyMarkers($("main"))；
@@ -534476,8 +534541,8 @@ function v017ApplyActionMarkers(root){
   });
   const marks=v017TaskMarkerData(),byVerb=new Map();
   for(const mark of marks){
-    if(!mark.action)continue;
     const moving=mark.where!==G.ring||(mark.placeId&&v013CurrentPlace()?.id!==mark.placeId);
+    if(!moving&&!mark.active)continue;
     const verb=moving||mark.action==="探索"?"移动":mark.action.replace(/交谈|相处/g,"交流");
     const entry=byVerb.get(verb)||{kind:"",names:[]};
     if(!entry.kind||mark.kind==="main")entry.kind=mark.kind;   // 同一动作挂着多条时主线优先
@@ -534761,8 +534826,11 @@ function uiMapContext(){
  const pref=v017TaskPref();
  const marks=v017TaskMarkerData(pref);
  const marksByPlace={};
- for(const mark of marks)if(mark.placeId)(marksByPlace[mark.placeId]=marksByPlace[mark.placeId]||[]).push(mark);
- const guideRows=taskGuideRows(pref).filter(row=>!row.done&&row.step);
+ for(const mark of marks){
+  if(mark.where!==G.ring)continue;
+  const id=mark.placeId||current?.id;
+  if(id)(marksByPlace[id]=marksByPlace[id]||[]).push(mark);
+ }
  const rumorIds=new Set(marks.map(mark=>mark.placeId).filter(Boolean));
  const stateOf=place=>{
   if(visitedIds.has(place.id))return "visited";
@@ -534787,7 +534855,7 @@ function uiMapContext(){
  const ringNodes=[];
  for(const target of [G.ring-1,G.ring+1]){
   if(!movementRingAllowed(target))continue;
-  ringNodes.push({marks:marks.filter(mark=>mark.where===target),key:"ring:"+target,openRing:target,isRing:true,place:{id:"ring:"+target,n:"第 "+target+" 环",t:"",risk:""},
+  ringNodes.push({marks:marks.filter(mark=>v017TaskNextRing(mark)===target),key:"ring:"+target,openRing:target,isRing:true,place:{id:"ring:"+target,n:"第 "+target+" 环",t:"",risk:""},
     mapState:"explored",label:(target<G.ring?"返回上一环":"深入下一环")});
  }
  /* 2026-11-24 制作人：网格式世界不再是「当前点连全环」的假地图。
@@ -537032,7 +537100,8 @@ function taskGuideRows(pref){
     const whereName=taskStepPlace(step)?.n||place||(step?RN(step.where):"");
     const source=id==="main"?"主线 · 主神交办":("支线 · "+(whereName?whereName+" 传来的":"当地人的口信"));
     const policy=progress.done?"已完成。":step?(id==="main"?"动手前先看代价；失败后按本任务条款结算。":"支线失败可重试。"):"接取后查看下一步。";
-    const row={key,name:chain.name,step,whereName,main:id==="main",done:!!progress.done,source,policy};
+    const failed=id==="main"&&G.godTaskState==="failed";
+    const row={key,name:chain.name,step,whereName,main:id==="main",active,done:!!progress.done||failed,failed,source,policy};
     row.followed=v017TaskTracked(resolved,row);
     return [row];
   });
@@ -537060,7 +537129,9 @@ function updateTaskGuide(kind,arg){
     ids=on?ids.filter(id=>id!==row.key).concat(row.key):ids.filter(id=>id!==row.key);
     uiAnnounce((on?"已追踪：":"已取消追踪：")+row.name);
   }
-  store.set(TASK_GUIDE_KEY,JSON.stringify({enabled,source,trackedIds:ids}));
+  const runs=kind==="task"?[...new Set([...pref.runs,pref.runKey])]:pref.runs;
+  const trackedIds=pref.otherIds.concat(kind==="task"||pref.explicit?ids:[]);
+  store.set(TASK_GUIDE_KEY,JSON.stringify({enabled,source,runs,trackedIds}));
   render();
   /* 地图与行动标记都从这份偏好重算：地图开着就即时重绘，旧的角标不会留半秒。 */
   if(typeof document!=="undefined"&&document.querySelector("#modalRoot .ui-map-canvas"))openMapPage();
@@ -537090,12 +537161,12 @@ function taskGuideHTML(){
       '<p class="v017-task-rowhead" data-task-kind="'+kind+'">'+
         '<span class="v017-task-kind v017-task-kind-'+kind+'">'+V017_TASK_KIND_TEXT[kind]+'</span>'+
         '<b class="v017-task-name">'+uiEsc(row.name)+'</b>'+
-        '<span class="v017-task-state">'+(row.done?'已完成':(row.followed?'追踪中':'未追踪'))+'</span>'+
+        '<span class="v017-task-state">'+(row.failed?'已失败':row.done?'已完成':(row.followed?'追踪中':'未追踪'))+'</span>'+
         '<button type="button" class="v017-task-switch" data-track-task="'+uiEsc(row.key)+'" aria-pressed="'+(row.followed?'true':'false')+'"'+(row.done?' disabled':'')+
           ' onclick="updateTaskGuide(\'task\',this.getAttribute(\'data-track-task\'))">追踪</button>'+
       '</p>'+
       '<p class="v017-task-step">'+stepText+'</p>'+
-      ((row.main&&!row.done&&row.step&&row.step.where===G.ring&&(!taskStepPlace(row.step)||taskStepPlace(row.step).id===v013CurrentPlace()?.id))?'<p class="v017-task-go"><button type="button" class="btn small prim hint" onclick="doAction(\''+uiEsc(row.step.action)+'\',\'task\')">〈任务〉'+uiEsc(row.step.act)+'</button></p>':'')+
+      ((row.active&&!row.done&&mainlineTaskTarget()?.disabled===false)?'<p class="v017-task-go"><button type="button" class="btn small prim hint" onclick="doAction(\''+uiEsc(row.step.action)+'\',\'task\')">〈任务〉'+uiEsc(row.step.act)+'</button></p>':'')+
       (row.main?'<div class="ui-task-meta">主线任务</div>':(row.source?'<div class="ui-task-meta">线索来自'+uiEsc(row.source)+'</div>':''))+
       '</div>';
   }).join(''):'<p class="v017-task-empty">没有符合筛选条件的任务。</p>';
@@ -537155,6 +537226,21 @@ function bindDockResizer(){
     applyDockShare(drag.height+drag.y-event.clientY);
     event.preventDefault();
   },{passive:false});
+  document.addEventListener("touchstart",event=>{
+    const grip=event.target.closest&&event.target.closest("#dockResizer");
+    const hist=$("historyPanel"),point=event.touches&&event.touches[0];
+    if(!grip||!hist||!point)return;
+    drag={id:"touch",y:point.clientY,height:hist.getBoundingClientRect().height};
+    grip.focus({preventScroll:true});
+    event.preventDefault();
+  },{passive:false});
+  document.addEventListener("touchmove",event=>{
+    const point=event.touches&&event.touches[0];
+    if(!drag||drag.id!=="touch"||!point)return;
+    applyDockShare(drag.height+drag.y-point.clientY);
+    event.preventDefault();
+  },{passive:false});
+  document.addEventListener("touchend",()=>{drag=null;},{passive:true});
   const release=()=>{drag=null;};
   document.addEventListener("pointerup",release);
   document.addEventListener("pointercancel",release);
@@ -537204,7 +537290,7 @@ function openMovement(placeId,target){
   const current=v013CurrentPlace();
   const targets=v017TaskMarkerData();
   /* 同一地点挂着两条任务时两条都留；只关掉控一条不会带走另一条。 */
-  const markers=(id,ring)=>targets.filter(mark=>(id?mark.placeId===id:mark.where===ring)).map(mark=>
+  const markers=(id,ring)=>targets.filter(mark=>(id?mark.placeId===id:v017TaskNextRing(mark)===ring)).map(mark=>
     '<span class="tag v017-task-chip" data-task-marker="'+mark.kind+'">'+uiEsc((mark.kind==="main"?'◆ 主线':'● 支线')+' · '+mark.name)+'</span>').join("");
   const place=places.find(row=>row.id===placeId&&row.r===G.ring);
   const ringMove=movementRingAllowed(target);
@@ -537220,6 +537306,12 @@ function openMovement(placeId,target){
     return;
   }
   let html='<p>当前位置：'+uiEsc(current?.n||RN(G.ring))+'</p>';
+  const task=mainlineTaskTarget();
+  if(task?.verb==="探索"||task?.disabled){
+    const call=v23Attr("doAction("+JSON.stringify(task.verb)+",'task')");
+    html+='<button type="button" class="btn hint" data-task-choice'+(task.disabled?' disabled':'')+
+      ' onclick="'+call+'">'+uiEsc(task.label)+' · '+uiEsc(task.act)+'</button>';
+  }
   for(const place of places){
     if(place.r!==G.ring||place.id===current?.id)continue;
     const access=v013PlaceAccessPlan(place.id,false);
@@ -537280,20 +537372,29 @@ function playMapHTML(){
   const {legend}=ctx;
   if(typeof v017MapEnsurePan==="function")v017MapEnsurePan();
   if(typeof v017MapQueueCenter==="function")v017MapQueueCenter();
-  return '<section id="playMap" class="card v23-map"><div class="v23-map-head"><h3>选择目的地</h3><div class="v23-map-tools"><button type="button" class="btn small" onclick="openBigMap()">大地图</button>'+v017MapZoomHTML()+'</div></div>' +
+  /* V0.19.2：地图可收起 / 展开；折叠状态只存本机偏好，不进存档。 */
+  const folded=(typeof store!=="undefined"&&store.get("amgdsvv_map_folded","0")==="1");
+  return '<section id="playMap" class="card v23-map'+(folded?" is-folded":"")+'"><div class="v23-map-head"><h3>选择目的地</h3><div class="v23-map-tools"><button type="button" class="btn small" id="mapFoldBtn" onclick="toggleMapFold()">'+(folded?"展开地图":"收起地图")+'</button><button type="button" class="btn small" onclick="openBigMap()">大地图</button>'+v017MapZoomHTML()+'</div></div>' +
     '<div class="ui-map-legend" aria-label="地图四态">'+legend+'</div>' +
     uiMapCanvasHTML(ctx) +
     '</section>';
+}
+/* 收起 / 展开主地图：只切类名与本机偏好，不重画页面、不改局内状态。 */
+function toggleMapFold(){
+  const section=$("playMap"); if(!section)return;
+  const folded=!section.classList.contains("is-folded");
+  section.classList.toggle("is-folded",folded);
+  if(typeof store!=="undefined")store.set("amgdsvv_map_folded",folded?"1":"0");
+  const button=$("mapFoldBtn"); if(button)button.textContent=folded?"展开地图":"收起地图";
 }
 /* UX-08 / 2026-11-23 制作人纠正：九个动词必须是同一张 3×3 九宫格。
    分组只做数据标记（data-verb-group），不再用三块 section 把九格拆成 2/3/3/1；
    高亮仍只靠 pickVerb 的 hintAct，不改变任何动作执行路径。
    2026-11-24 制作人纠正：格子里不加说明小字，只留动词本身。
    2026-11-24 二改：交谈/相处合并为「交流」，移动收进地图，行动区回到 Demo 的八格。 */
-function v23VerbGroupsHTML(hintAct){
-  const step=chainStepCur(),place=taskStepPlace(step);
-  const moveNeeded=step&&(G.ring!==step.where||(place&&v013CurrentPlace()?.id!==place.id));
-  const hint=moveNeeded?"移动":hintAct==="探索"?"移动":hintAct==="交谈"||hintAct==="相处"?"交流":hintAct;
+function v23VerbGroupsHTML(){
+  const task=mainlineTaskTarget();
+  const hint=task?.disabled||task?.verb==="探索"?"移动":task?.verb.replace(/交谈|相处/g,"交流");
   const verbs=[
     ["移动","主线","openMovement()"],
     ["搜索","主线","pickVerb('搜索')"],
@@ -537352,11 +537453,9 @@ function renderPlay(){
     if(gs){ h+="<div class=\"guide\"><b>教学卡 · "+gs[1]+"</b><br>"+gs[2]+"</div>"; markGuide(gs[0]); }
     h+="<div class=\"advice\"><b>当前建议：</b>"+currentAdvice()+"</div>";
   }
-  const stStep=chainStepCur();
-  const hintAct=(!curChainDone() && stStep && G.ring===stStep.where)?stStep.action:null;
   /* 2026-11-24 制作人第 9 条：地图卡内部不再挂「路线与移动预览」大块，
      画布高度按实际行数收起；行动九宫格仍按既定结构紧跟地图，不再被空白拖远。 */
-  let actionHTML='<div class="card" id="actionBlock"><h3>选择行动<span class="v23-action-meta">'+todayText()+' · 本时段还能行动 '+Math.max(0,CFG.actsPerSlot-(G.actInSlot||0))+' 次</span></h3>'+v23VerbGroupsHTML(hintAct);
+  let actionHTML='<div class="card" id="actionBlock"><h3>选择行动<span class="v23-action-meta">'+todayText()+' · 本时段还能行动 '+Math.max(0,CFG.actsPerSlot-(G.actInSlot||0))+' 次</span></h3>'+v23VerbGroupsHTML();
   if(G.skillHintStatus) actionHTML+='<p class="skill-status">'+G.skillHintStatus+"</p>";
   if(G.hull!=null && !G.aftermath){
     actionHTML+="<button class=\"btn small danger\" onclick=\"breakNow()\">主动脱离（引爆 / 弃船 / 跳伞）</button>";
@@ -537622,11 +537721,19 @@ function uiV23ShellSettle(){
   const side=$("uiV23Side"),main=$("main"),frame=$("uiV23Shell");
   if(!side||!main||!frame)return;
   if(typeof main.querySelector!=="function"||typeof side.replaceChildren!=="function")return;
-  const dock=main.querySelector("#taskDock");
+  const dock=main.querySelector("#taskDock")||side.querySelector("#taskDock");
   const stale=side.querySelector("#taskDock");
   if(dock){
     if(stale&&stale!==dock)stale.remove();
-    if(dock.parentElement!==side)side.appendChild(dock);
+    /* V0.19.2 制作人令：手机端任务 / 动态栏放在地图上面，不再沉到整页最底。
+       窄屏把同一节点插到 #playMap 前；宽屏仍归左栏，桌面结构不变。 */
+    const mobile=typeof window!=="undefined"&&window.innerWidth<=900;
+    const map=main.querySelector("#playMap");
+    if(mobile&&map&&map.parentElement){
+      if(dock.parentElement!==map.parentElement||dock.nextElementSibling!==map)map.parentElement.insertBefore(dock,map);
+    }else if(dock.parentElement!==side){
+      side.appendChild(dock);
+    }
   }else if(side.childElementCount){
     side.replaceChildren();
   }
@@ -537658,7 +537765,7 @@ function uiV23ShellMount(){
   uiV23ShellInstallHooks();
   if(typeof window!=="undefined"&&!window.__uiV23FitBound){
     window.__uiV23FitBound=true;
-    window.addEventListener("resize",function(){uiV23FitSide();});
+    window.addEventListener("resize",function(){uiV23ShellSettle();uiV23FitSide();});
     window.addEventListener("scroll",uiV23FitSide,{passive:true});
   }
   if($("uiV23Shell")){
@@ -545319,7 +545426,9 @@ eventChoice=function(option){
   }
   if(eventBefore.ring!==G.ring)changes.push('当前位置：'+placeDisplay(RN(G.ring)));
   const summary=changes.join('，'),outcome=eventDisplayName(event)+'：'+(summary||'已结算，资源数值未改变');G.lastResult=outcome;
-  const resultButton='<button class="btn prim" onclick="closeResult()">';if($('modalRoot').innerHTML.includes(resultButton))$('modalRoot').innerHTML='<div class="mask"><div class="modal"><h2 class="gold">行动结果</h2><p>你选择了「'+v5Esc(String(option[0]))+'」。</p><p class="actual-result">实际结算：'+v5Esc(summary||'资源数值未改变')+'。</p>'+resultButton+'继续</button></div></div>';
+  const resultButton='<button class="btn prim" onclick="closeResult()">';if($('modalRoot').innerHTML.includes(resultButton)||$('modalRoot').innerHTML.includes('instant-result'))$('modalRoot').innerHTML='<div class="mask"><div class="modal"><h2 class="gold">行动结果</h2><p>你选择了「'+v5Esc(String(option[0]))+'」。</p><p class="actual-result">实际结算：'+v5Esc(summary||'资源数值未改变')+'。</p>'+resultButton+'继续</button></div></div>';
+  /* V0.19.2：事件结算也走即时结果浮层；正文只写实际变化，不预写未发生的伤。 */
+  if(!G.pendingEvent&&!G.pendingRoll&&G.phase==='playing'&&optimizedRun())showResult('你选择了「'+v5Esc(String(option[0]))+'」。<br><span class="actual-result">实际结算：'+v5Esc(summary||'资源数值未改变')+'</span>');
   recordWorldFact({id:confirmationId+':outcome',kind:'event',text:outcome,effects,balance:{before:balanceBefore,after:LS_CRED},source:'亲历',causeIds:event.causeIds||[],ring:G.ring},['player']);if(G.pendingEvent)G.pendingEvent.causeIds=[confirmationId+':outcome'];checkDeath();render();
  });
 };
@@ -566589,5 +566698,5 @@ function homeSceneDispose(c) {
   c.canvas.remove();
 }
 </script>
-</div><div id="buildStamp" aria-hidden="true">v0.19.1 · 0bf430b · 2026/11/26 01:36:34 · 26.8 MB</div></body>
+</div><div id="buildStamp" aria-hidden="true">v0.19.5 · 4e7af25 · 2026/11/26 05:18:09 · 26.9 MB</div></body>
 </html>
